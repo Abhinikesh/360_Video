@@ -25,10 +25,12 @@ const strengthColor = ['', 'bg-red-400', 'bg-yellow-400', 'bg-blue-400', 'bg-gre
 const strengthText  = ['', 'text-red-500', 'text-yellow-600', 'text-blue-600', 'text-green-600']
 
 export default function SignupPage() {
-  const [showPw, setShowPw]      = useState(false)
-  const [showCPw, setShowCPw]    = useState(false)
-  const [password, setPassword]  = useState('')
-  const [confirm, setConfirm]    = useState('')
+  const [showPw,   setShowPw]   = useState(false)
+  const [showCPw,  setShowCPw]  = useState(false)
+  const [password, setPassword] = useState('')
+  const [confirm,  setConfirm]  = useState('')
+  const [fullName, setFullName] = useState('')
+  const [email,    setEmail]    = useState('')
   const strength = getStrength(password)
   const pwMatch = confirm.length > 0 && password === confirm
   const navigate = useNavigate()
@@ -36,8 +38,10 @@ export default function SignupPage() {
   const handleSubmit = e => {
     e.preventDefault()
     if (!pwMatch) return
-    localStorage.setItem('360tales_auth', '1')
-    navigate('/create')
+    localStorage.setItem('360tales_auth',  '1')
+    localStorage.setItem('360tales_name',  fullName || 'Creator')
+    localStorage.setItem('360tales_email', email)
+    navigate('/dashboard')
   }
 
   return (
@@ -67,6 +71,8 @@ export default function SignupPage() {
               autoComplete="name"
               placeholder="John Doe"
               className="form-input"
+              value={fullName}
+              onChange={e => setFullName(e.target.value)}
               required
             />
           </div>
@@ -80,6 +86,8 @@ export default function SignupPage() {
               autoComplete="email"
               placeholder="you@example.com"
               className="form-input"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
               required
             />
           </div>

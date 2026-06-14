@@ -13,12 +13,17 @@ const GoogleIcon = () => (
 
 export default function LoginPage() {
   const [showPw, setShowPw] = useState(false)
+  const [email,  setEmail]  = useState('')
   const navigate = useNavigate()
 
   const handleSubmit = e => {
     e.preventDefault()
     localStorage.setItem('360tales_auth', '1')
-    navigate('/create')
+    localStorage.setItem('360tales_email', email)
+    if (!localStorage.getItem('360tales_name')) {
+      localStorage.setItem('360tales_name', email.split('@')[0])
+    }
+    navigate('/dashboard')
   }
 
   return (
@@ -48,6 +53,8 @@ export default function LoginPage() {
               autoComplete="email"
               placeholder="you@example.com"
               className="form-input"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
               required
             />
           </div>

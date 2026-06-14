@@ -1,6 +1,5 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useEffect } from 'react'
 import TopBar from '../components/create/TopBar'
 import LeftPanel from '../components/create/LeftPanel'
 import MiddlePanel from '../components/create/MiddlePanel'
@@ -16,202 +15,160 @@ export default function CreatePage() {
     if (!localStorage.getItem('360tales_auth')) navigate('/login')
   }, [navigate])
 
-  // App flow state
-  const [appState, setAppState] = useState('create') // 'create' | 'processing' | 'result'
+  // App flow
+  const [appState, setAppState] = useState('create')  // 'create' | 'processing' | 'result'
 
   // File state
-  const [file, setFile] = useState(null)
+  const [file,    setFile]    = useState(null)
   const [fileUrl, setFileUrl] = useState(null)
-  const [is360, setIs360] = useState(false)
+  const [is360,   setIs360]   = useState(false)
 
   // Preview state
-  const [effect, setEffect] = useState('slowPan')
+  const [effect,       setEffect]       = useState('slowPan')
   const [isPreviewing, setIsPreviewing] = useState(false)
-
-  // Hotspots for sphere viewer
-  const [hotspots, setHotspots] = useState([])
+  const [hotspots,     setHotspots]     = useState([])
 
   // Narration
-  const [narration, setNarration] = useState('')
-  const [aiLoading, setAiLoading] = useState(false)
-  const [aiGenerated, setAiGenerated] = useState(false)
+  const [narration,    setNarration]    = useState('')
+  const [aiLoading,    setAiLoading]    = useState(false)
+  const [aiGenerated,  setAiGenerated]  = useState(false)
 
-  // Voice
-  const [language, setLanguage] = useState('English')
-  const [voiceStyle, setVoiceStyle] = useState('Natural (Female)')
-
-  // Export
-  const [format, setFormat] = useState('Standard MP4')
+  // Voice & export
+  const [language,  setLanguage]  = useState('English')
+  const [voiceStyle, setVoiceStyle] = useState('Natural Female')
+  const [format,    setFormat]    = useState('Standard MP4')
 
   // Additional options
-  const [bgMusic, setBgMusic] = useState(false)
-  const [musicStyle, setMusicStyle] = useState('Ambient')
-  const [subtitles, setSubtitles] = useState(true)
-  const [watermark, setWatermark] = useState(false)
-  const [watermarkText, setWatermarkText] = useState('')
+  const [bgMusic,        setBgMusic]        = useState(false)
+  const [musicStyle,     setMusicStyle]     = useState('Ambient')
+  const [subtitles,      setSubtitles]      = useState(true)
+  const [watermark,      setWatermark]      = useState(false)
+  const [watermarkText,  setWatermarkText]  = useState('')
 
-  // Mobile step navigation
-  const [mobileStep, setMobileStep] = useState(0) // 0=left, 1=middle, 2=right
+  // Mobile step nav
+  const [mobileStep, setMobileStep] = useState(0)  // 0=left 1=middle 2=right
 
   const handleFileSelect = useCallback((selectedFile, as360 = false) => {
-    if (!selectedFile) {
-      setFile(null)
-      setFileUrl(null)
-      setIs360(false)
-      return
-    }
+    if (!selectedFile) { setFile(null); setFileUrl(null); setIs360(false); return }
     const url = URL.createObjectURL(selectedFile)
-    setFile(selectedFile)
-    setFileUrl(url)
-    setIs360(as360)
-    setHotspots([])
-    setIsPreviewing(false)
+    setFile(selectedFile); setFileUrl(url); setIs360(as360)
+    setHotspots([]); setIsPreviewing(false)
   }, [])
 
-  const handleGenerate = () => {
-    if (!file && !fileUrl) return
-    setAppState('processing')
-  }
-
-  const handleProcessingComplete = () => {
-    setAppState('result')
-  }
-
+  const handleGenerate = () => { if (fileUrl) setAppState('processing') }
+  const handleProcessingComplete = () => setAppState('result')
   const handleCreateAnother = () => {
-    setFile(null)
-    setFileUrl(null)
-    setIs360(false)
-    setNarration('')
-    setAiGenerated(false)
-    setHotspots([])
-    setAppState('create')
-    setMobileStep(0)
+    setFile(null); setFileUrl(null); setIs360(false)
+    setNarration(''); setAiGenerated(false); setHotspots([])
+    setAppState('create'); setMobileStep(0)
   }
 
   const handleAiGenerate = () => {
     setAiLoading(true)
     setTimeout(() => {
       setNarration(
-        'Nestled in the heart of one of the world\'s most iconic landscapes, this breathtaking destination ' +
-        'has captivated travelers for centuries. The site holds deep cultural and historical significance — ' +
-        'a testament to remarkable human achievement and natural wonder. Visitors are drawn by its timeless beauty, ' +
-        'architectural grandeur, and the stories etched into every stone. Best visited during the early morning hours ' +
-        'when golden light illuminates the scene. A truly immersive experience awaits those who take the time to explore ' +
-        'beyond the surface and listen to the whispers of history.'
+        'Welcome to this magnificent destination. This remarkable place has captivated visitors for centuries ' +
+        'with its stunning architecture and rich cultural heritage. The site dates back over 400 years and ' +
+        'remains one of the most visited landmarks in the region, drawing millions of tourists each year who ' +
+        'come to witness its timeless beauty and profound historical significance.'
       )
-      setAiLoading(false)
-      setAiGenerated(true)
-    }, 2200)
+      setAiLoading(false); setAiGenerated(true)
+    }, 2000)
   }
 
-  if (appState === 'processing') {
-    return <ProcessingScreen onComplete={handleProcessingComplete} />
-  }
-
+  // Result screen replaces page
   if (appState === 'result') {
     return (
       <ResultScreen
-        fileUrl={fileUrl}
-        format={format}
-        language={language}
-        voiceStyle={voiceStyle}
+        fileUrl={fileUrl} format={format}
+        language={language} voiceStyle={voiceStyle}
         onCreateAnother={handleCreateAnother}
       />
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="h-screen overflow-hidden flex flex-col bg-white">
       <TopBar />
 
-      {/* Mobile step indicator */}
-      <div className="md:hidden bg-white border-b border-gray-200 px-4 py-3">
-        <div className="flex items-center gap-2">
-          {['Input', 'Preview', 'Settings'].map((label, i) => (
-            <button
-              key={label}
-              onClick={() => setMobileStep(i)}
-              className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-colors ${
-                mobileStep === i
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+      {/* Processing overlay */}
+      {appState === 'processing' && (
+        <ProcessingScreen onComplete={handleProcessingComplete} />
+      )}
+
+      {/* ── MOBILE step tabs ── */}
+      <div className="md:hidden bg-white border-b border-gray-200 px-4 py-2 flex gap-1.5 shrink-0">
+        {['Input', 'Preview', 'Settings'].map((label, i) => (
+          <button key={label} onClick={() => setMobileStep(i)}
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+              mobileStep === i ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+            }`}>{label}</button>
+        ))}
       </div>
 
-      {/* Main 3-column layout */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-        {/* LEFT PANEL */}
-        <div className={`w-full md:w-[340px] lg:w-[380px] border-r border-gray-200 bg-white overflow-y-auto shrink-0 ${mobileStep !== 0 ? 'hidden md:block' : ''}`}>
-          <LeftPanel onFileSelect={handleFileSelect} fileUrl={fileUrl} />
-        </div>
+      {/* ── MAIN 3-COLUMN LAYOUT ── */}
+      <div className="flex-1 flex overflow-hidden min-h-0">
 
-        {/* MIDDLE PANEL */}
-        <div className={`flex-1 overflow-y-auto bg-gray-50 ${mobileStep !== 1 ? 'hidden md:block' : ''}`}>
-          <MiddlePanel
-            fileUrl={fileUrl}
-            is360={is360}
-            effect={effect}
-            onEffectChange={setEffect}
-            isPreviewing={isPreviewing}
-            onTogglePreview={() => setIsPreviewing(v => !v)}
-            hotspots={hotspots}
-            onHotspotsChange={setHotspots}
-          />
-        </div>
+        {/* LEFT — Input */}
+        <aside className={`w-full md:w-[30%] lg:w-[320px] xl:w-[360px] shrink-0 border-r border-gray-200 bg-white flex flex-col overflow-hidden
+          ${mobileStep !== 0 ? 'hidden md:flex' : 'flex'}`}>
+          <div className="px-4 pt-3 pb-1 shrink-0">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">1 · Input</span>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            <LeftPanel onFileSelect={handleFileSelect} fileUrl={fileUrl} />
+          </div>
+        </aside>
 
-        {/* RIGHT PANEL */}
-        <div className={`w-full md:w-[340px] lg:w-[380px] border-l border-gray-200 bg-white overflow-y-auto shrink-0 ${mobileStep !== 2 ? 'hidden md:block' : ''}`}>
+        {/* MIDDLE — Preview */}
+        <main className={`flex-1 bg-gray-50 flex flex-col overflow-hidden min-w-0
+          ${mobileStep !== 1 ? 'hidden md:flex' : 'flex'}`}>
+          <div className="px-4 pt-3 pb-1 shrink-0 bg-white border-b border-gray-200">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">2 · Preview</span>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            <MiddlePanel
+              fileUrl={fileUrl} is360={is360}
+              effect={effect} onEffectChange={setEffect}
+              isPreviewing={isPreviewing}
+              onTogglePreview={() => setIsPreviewing(v => !v)}
+              hotspots={hotspots} onHotspotsChange={setHotspots}
+            />
+          </div>
+        </main>
+
+        {/* RIGHT — Settings */}
+        <aside className={`w-full md:w-[30%] lg:w-[320px] xl:w-[380px] shrink-0 border-l border-gray-200 bg-white flex flex-col overflow-hidden
+          ${mobileStep !== 2 ? 'hidden md:flex' : 'flex'}`}>
+          <div className="px-4 pt-3 pb-1 shrink-0">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">3 · Settings & Export</span>
+          </div>
           <RightPanel
-            narration={narration}
-            onNarrationChange={setNarration}
-            aiLoading={aiLoading}
-            aiGenerated={aiGenerated}
-            onAiGenerate={handleAiGenerate}
-            language={language}
-            onLanguageChange={setLanguage}
-            voiceStyle={voiceStyle}
-            onVoiceStyleChange={setVoiceStyle}
-            format={format}
-            onFormatChange={setFormat}
-            bgMusic={bgMusic}
-            onBgMusicChange={setBgMusic}
-            musicStyle={musicStyle}
-            onMusicStyleChange={setMusicStyle}
-            subtitles={subtitles}
-            onSubtitlesChange={setSubtitles}
-            watermark={watermark}
-            onWatermarkChange={setWatermark}
-            watermarkText={watermarkText}
-            onWatermarkTextChange={setWatermarkText}
-            canGenerate={!!fileUrl}
-            onGenerate={handleGenerate}
+            narration={narration} onNarrationChange={setNarration}
+            aiLoading={aiLoading} aiGenerated={aiGenerated} onAiGenerate={handleAiGenerate}
+            language={language} onLanguageChange={setLanguage}
+            voiceStyle={voiceStyle} onVoiceStyleChange={setVoiceStyle}
+            format={format} onFormatChange={setFormat}
+            bgMusic={bgMusic} onBgMusicChange={setBgMusic}
+            musicStyle={musicStyle} onMusicStyleChange={setMusicStyle}
+            subtitles={subtitles} onSubtitlesChange={setSubtitles}
+            watermark={watermark} onWatermarkChange={setWatermark}
+            watermarkText={watermarkText} onWatermarkTextChange={setWatermarkText}
+            canGenerate={!!fileUrl} onGenerate={handleGenerate}
           />
-        </div>
+        </aside>
       </div>
 
-      {/* Mobile bottom navigation */}
-      <div className="md:hidden bg-white border-t border-gray-200 px-4 py-3 flex gap-3">
+      {/* ── MOBILE bottom nav ── */}
+      <div className="md:hidden bg-white border-t border-gray-200 px-4 py-3 flex gap-2 shrink-0">
         {mobileStep > 0 && (
-          <button onClick={() => setMobileStep(s => s - 1)} className="btn-outline flex-1 py-2.5 text-sm">
-            Back
-          </button>
+          <button onClick={() => setMobileStep(s => s - 1)} className="btn-outline flex-1 py-2.5 text-sm">Back</button>
         )}
-        {mobileStep < 2 && (
-          <button onClick={() => setMobileStep(s => s + 1)} className="btn-primary flex-1 py-2.5 text-sm">
-            Next
-          </button>
-        )}
-        {mobileStep === 2 && (
-          <button
-            onClick={handleGenerate}
-            disabled={!fileUrl}
-            className={`btn-primary flex-1 py-2.5 text-sm ${!fileUrl ? 'opacity-50 cursor-not-allowed' : ''}`}
-          >
+        {mobileStep < 2 ? (
+          <button onClick={() => setMobileStep(s => s + 1)} className="btn-primary flex-1 py-2.5 text-sm">Next</button>
+        ) : (
+          <button onClick={handleGenerate} disabled={!fileUrl}
+            className={`btn-primary flex-1 py-2.5 text-sm ${!fileUrl ? 'opacity-50 cursor-not-allowed' : ''}`}>
             Generate Story
           </button>
         )}
