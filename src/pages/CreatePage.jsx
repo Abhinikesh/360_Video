@@ -35,7 +35,7 @@ export default function CreatePage() {
 
   // Voice & export
   const [language,  setLanguage]  = useState('English')
-  const [voiceStyle, setVoiceStyle] = useState('Natural Female')
+  const [voiceStyle, setVoiceStyle] = useState('Natural (Female)')
   const [format,    setFormat]    = useState('Standard MP4')
 
   // Additional options
