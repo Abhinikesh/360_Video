@@ -28,7 +28,10 @@ class Project(Base):
     created_at:          Mapped[datetime]       = mapped_column(DateTime,    nullable=False, default=datetime.utcnow)
     updated_at:          Mapped[datetime]       = mapped_column(DateTime,    nullable=False, default=datetime.utcnow)
 
-    def to_dict(self, base_url: str = "http://localhost:8000"):
+    def to_dict(self, base_url: str = None):
+        import os
+        if base_url is None:
+            base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
         output_url = None
         if self.output_video_path:
             output_url = f"{base_url}/{self.output_video_path.replace(chr(92), '/')}"

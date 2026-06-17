@@ -9,6 +9,14 @@ import ResultScreen from '../components/create/ResultScreen'
 import { uploadAPI, generateAPI } from '../services/api'
 import { useToast } from '../components/ToastProvider'
 
+// Map CSS effect IDs → backend display names
+const EFFECT_MAP = {
+  slowPan:  'Slow Pan',
+  zoomIn:   'Zoom In',
+  rotate:   'Rotate',
+  kenBurns: 'Ken Burns',
+}
+
 export default function CreatePage() {
   const navigate  = useNavigate()
   const addToast  = useToast()
@@ -129,7 +137,7 @@ export default function CreatePage() {
         language,
         voice_style:          voiceStyle,
         export_format:        format,
-        effect_type:          effect,
+        effect_type:          EFFECT_MAP[effect] || 'Slow Pan',
         burn_subtitles:       subtitles,
         add_background_music: bgMusic,
         music_style:          musicStyle,

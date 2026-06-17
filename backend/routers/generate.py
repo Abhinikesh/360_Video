@@ -1,3 +1,4 @@
+import os
 import asyncio
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
@@ -172,12 +173,13 @@ async def get_status(
     if not project or project.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Project not found")
 
+    base = os.getenv("API_BASE_URL", "http://localhost:8000")
     return {
         "project_id":      project.id,
         "status":          project.status,
         "progress_percent": project.progress_percent,
         "output_url":      (
-            f"http://localhost:8000/{project.output_video_path}"
+            f"{base}/{project.output_video_path.replace(os.sep, '/')}"
             if project.output_video_path else None
         ),
         "error":           project.error_message,

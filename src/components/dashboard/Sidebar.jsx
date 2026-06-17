@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { Globe, LayoutDashboard, PlusCircle, FolderOpen, Settings, HelpCircle, LogOut, User } from 'lucide-react'
+import { clearToken } from '../../services/api'
 
 const NAV = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard'       },
@@ -15,6 +16,7 @@ export default function Sidebar({ onClose }) {
   const email = localStorage.getItem('360tales_email') || 'you@example.com'
 
   const handleLogout = () => {
+    clearToken()
     localStorage.removeItem('360tales_auth')
     localStorage.removeItem('360tales_name')
     localStorage.removeItem('360tales_email')

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { User, Lock, Sliders, CreditCard, Trash2, Upload, Eye, EyeOff, ChevronDown, Menu } from 'lucide-react'
 import Sidebar from '../components/dashboard/Sidebar'
+import { api, clearToken } from '../services/api'
 
 const LANGUAGES = ['English', 'Hindi', 'Spanish', 'French', 'Arabic', 'Japanese', 'German', 'Portuguese', 'Italian', 'Russian']
 const VOICES    = ['Natural Female', 'Natural Male', 'Documentary', 'Energetic', 'Calm & Peaceful']
@@ -47,8 +48,13 @@ export default function SettingsPage() {
   const [defLang,    setDefLang]    = useState('English')
   const [defVoice,   setDefVoice]   = useState('Natural Female')
 
-  const handleSaveProfile = e => {
+  const handleSaveProfile = async e => {
     e.preventDefault()
+    try {
+      await api.patch('/api/auth/me', { name })
+    } catch {
+      // backend unavailable; fall through to localStorage only
+    }
     localStorage.setItem('360tales_name',  name)
     localStorage.setItem('360tales_email', email)
     setSaved(true)
@@ -57,6 +63,7 @@ export default function SettingsPage() {
 
   const handleDeleteAccount = () => {
     if (!window.confirm('Are you sure? This action cannot be undone.')) return
+    clearToken()
     localStorage.clear()
     navigate('/login')
   }
