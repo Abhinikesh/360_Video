@@ -1,8 +1,8 @@
 import os
+import bcrypt
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,18 +12,25 @@ SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production-use-secrets-token-
 ALGORITHM  = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
-pwd_context   = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
 # ─── Password helpers ─────────────────────────────────────────────────────────
+# Use bcrypt directly instead of passlib to avoid passlib/bcrypt-5.x incompatibility.
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    """Hash a plaintext password and return the bcrypt hash string."""
+    salt = bcrypt.gensalt(rounds=12)
+    hashed = bcrypt.hashpw(password.encode("utf-8"), salt)
+    return hashed.decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    """Verify a plaintext password against a stored bcrypt hash."""
+    try:
+        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    except Exception:
+        return False
 
 
 # ─── JWT helpers ──────────────────────────────────────────────────────────────
@@ -47,16 +54,6 @@ def decode_token(token: str) -> dict:
 
 
 # ─── Current-user dependency ──────────────────────────────────────────────────
-
-async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: AsyncSession = Depends(None),  # overridden at import time by each router
-):
-    """
-    Thin wrapper — routers call get_current_user_dep(db) which is built below.
-    """
-    raise NotImplementedError("Use get_current_user_dep instead")
-
 
 def make_current_user_dep(get_db_dep):
     """

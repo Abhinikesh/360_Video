@@ -22,3 +22,24 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+backend/venv/
+backend/.venv/
+*.pyc
+
+# Database
+backend/*.db
+backend/*.sqlite3
+
+# Generated media (uploads & outputs)
+backend/uploads/
+backend/outputs/
+
+# Environment secrets
+backend/.env
+.env.local
+.env.production
