@@ -1,18 +1,19 @@
+import os
 from fastapi import APIRouter, HTTPException, Depends, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from pydantic import BaseModel, field_validator
-from models.database import get_db
-from models.user import User
-from utils.auth_utils import hash_password, verify_password, create_access_token, make_current_user_dep
+from datetime import datetime
+from models.database import get_db, serialize_doc
+from models.user import make_user_doc
+from utils.auth_utils import (
+    hash_password, verify_password,
+    create_access_token, make_current_user_dep,
+)
 
 router = APIRouter()
-
-# Build the dependency once at module level
 _get_current_user = make_current_user_dep(get_db)
 
 
-# ─── Request / Response schemas ───────────────────────────────────────────────
+# ─── Schemas ──────────────────────────────────────────────────────────────────
 
 class SignupRequest(BaseModel):
     name: str
@@ -47,61 +48,132 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class GoogleAuthBody(BaseModel):
+    credential: str
+
+
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+
+def _user_response(user_id: str, user_doc: dict, token: str) -> dict:
+    return {
+        "access_token": token,
+        "token_type":   "bearer",
+        "user": {
+            "id":         user_id,
+            "name":       user_doc.get("name", ""),
+            "email":      user_doc.get("email", ""),
+            "avatar_url": user_doc.get("avatar_url", ""),
+        },
+    }
+
+
 # ─── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.post("/signup", status_code=status.HTTP_201_CREATED)
-async def signup(data: SignupRequest, db: AsyncSession = Depends(get_db)):
-    # Duplicate email check
-    result = await db.execute(select(User).where(User.email == data.email))
-    if result.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Email already registered")
+async def signup(data: SignupRequest):
+    db = get_db()
+    if db is None:
+        raise HTTPException(503, "Database not connected. Set MONGODB_URL in backend/.env")
 
-    user = User(
+    if await db.users.find_one({"email": data.email}):
+        raise HTTPException(400, "Email already registered")
+
+    doc = make_user_doc(
         name=data.name,
         email=data.email,
         password_hash=hash_password(data.password),
     )
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-
-    token = create_access_token({"sub": str(user.id)})
-    return {
-        "access_token": token,
-        "token_type":   "bearer",
-        "user": {"id": user.id, "name": user.name, "email": user.email, "plan": user.plan},
-    }
+    result  = await db.users.insert_one(doc)
+    user_id = str(result.inserted_id)
+    token   = create_access_token({"sub": user_id})
+    return _user_response(user_id, doc, token)
 
 
 @router.post("/login")
-async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == data.email.lower().strip()))
-    user: User | None = result.scalar_one_or_none()
+async def login(data: LoginRequest):
+    db = get_db()
+    if db is None:
+        raise HTTPException(503, "Database not connected. Set MONGODB_URL in backend/.env")
 
-    if not user or not verify_password(data.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+    user = await db.users.find_one({"email": data.email.lower().strip()})
+    if not user or not user.get("password_hash") or not verify_password(data.password, user["password_hash"]):
+        raise HTTPException(401, "Invalid email or password")
 
-    token = create_access_token({"sub": str(user.id)})
-    return {
-        "access_token": token,
-        "token_type":   "bearer",
-        "user": {"id": user.id, "name": user.name, "email": user.email, "plan": user.plan},
-    }
+    user_id = str(user["_id"])
+    token   = create_access_token({"sub": user_id})
+    return _user_response(user_id, user, token)
+
+
+@router.post("/google")
+async def google_auth(body: GoogleAuthBody):
+    """Verify a Google ID token and sign in / register the user."""
+    db = get_db()
+    if db is None:
+        raise HTTPException(503, "Database not connected. Set MONGODB_URL in backend/.env")
+
+    google_client_id = os.getenv("GOOGLE_CLIENT_ID")
+    if not google_client_id:
+        raise HTTPException(500, "GOOGLE_CLIENT_ID not configured on server")
+
+    try:
+        from google.oauth2 import id_token
+        from google.auth.transport import requests as google_requests
+        idinfo = id_token.verify_oauth2_token(
+            body.credential,
+            google_requests.Request(),
+            google_client_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, f"Invalid Google token: {exc}")
+
+    email      = idinfo["email"]
+    name       = idinfo.get("name", email.split("@")[0])
+    google_id  = idinfo["sub"]
+    avatar_url = idinfo.get("picture", "")
+
+    # Find existing user or create new one
+    user = await db.users.find_one({"email": email})
+    if not user:
+        doc = make_user_doc(name=name, email=email, google_id=google_id, avatar_url=avatar_url)
+        result  = await db.users.insert_one(doc)
+        user_id = str(result.inserted_id)
+        user    = doc
+    else:
+        user_id = str(user["_id"])
+        # Update Google ID and avatar if missing
+        from bson import ObjectId
+        await db.users.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": {"google_id": google_id, "avatar_url": avatar_url}},
+        )
+
+    token = create_access_token({"sub": user_id})
+    return _user_response(user_id, user, token)
 
 
 @router.get("/me")
-async def me(current_user: User = Depends(_get_current_user)):
-    return current_user.to_dict()
+async def me(current_user: dict = Depends(_get_current_user)):
+    return {
+        "id":            current_user["id"],
+        "name":          current_user.get("name", ""),
+        "email":         current_user.get("email", ""),
+        "avatar_url":    current_user.get("avatar_url", ""),
+        "total_stories": current_user.get("total_stories", 0),
+        "created_at":    current_user.get("created_at", datetime.utcnow()).isoformat()
+                         if hasattr(current_user.get("created_at"), "isoformat")
+                         else str(current_user.get("created_at", "")),
+    }
 
 
 @router.patch("/me")
-async def update_profile(
-    body: dict,
-    current_user: User = Depends(_get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    if "name" in body and body["name"].strip():
-        current_user.name = body["name"].strip()
-    await db.commit()
-    await db.refresh(current_user)
-    return current_user.to_dict()
+async def update_profile(body: dict, current_user: dict = Depends(_get_current_user)):
+    db = get_db()
+    from bson import ObjectId
+    updates = {}
+    if "name" in body and str(body["name"]).strip():
+        updates["name"] = str(body["name"]).strip()
+    if updates:
+        await db.users.update_one({"_id": ObjectId(current_user["id"])}, {"$set": updates})
+    updated = await db.users.find_one({"_id": ObjectId(current_user["id"])})
+    updated["id"] = str(updated.pop("_id"))
+    return {k: updated.get(k) for k in ["id", "name", "email", "avatar_url", "total_stories"]}

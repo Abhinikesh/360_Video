@@ -7,9 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ─── Ensure required directories exist at import time ─────────────────────────
-# StaticFiles.mount() requires directories to already exist, so we create them
-# here — before the app is constructed — rather than only in lifespan().
+# ─── Create required directories at import time ───────────────────────────────
 for _folder in ["uploads", "outputs", "outputs/videos", "outputs/audio", "outputs/depth"]:
     os.makedirs(_folder, exist_ok=True)
 
@@ -17,19 +15,16 @@ for _folder in ["uploads", "outputs", "outputs/videos", "outputs/audio", "output
 # ─── Lifespan ─────────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Re-ensure dirs (no-op if already exist) and init DB tables
-    for folder in ["uploads", "outputs", "outputs/videos", "outputs/audio", "outputs/depth"]:
-        os.makedirs(folder, exist_ok=True)
-    from models.database import init_db
-    await init_db()
+    from models.database import connect_db, close_db
+    await connect_db()
     yield
-    # Shutdown (nothing needed)
+    await close_db()
 
 
 app = FastAPI(
-    title="360Tales API",
+    title="Horizon API",
     version="1.0.0",
-    description="Backend for 360Tales — AI-powered 360° immersive video creation",
+    description="Backend for Horizon — AI-powered 360° immersive story creator",
     lifespan=lifespan,
 )
 
@@ -43,11 +38,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ─── Static file serving ───────────────────────────────────────────────────────
+# ─── Static file serving ──────────────────────────────────────────────────────
 app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
 app.mount("/uploads", StaticFiles(directory="uploads"),  name="uploads")
 
-# ─── Routers ───────────────────────────────────────────────────────────────────
+# ─── Routers ──────────────────────────────────────────────────────────────────
 from routers import auth, upload, generate, projects, tts
 
 app.include_router(auth.router,     prefix="/api/auth",     tags=["auth"])
@@ -59,5 +54,4 @@ app.include_router(tts.router,      prefix="/api/tts",      tags=["tts"])
 # ─── Health check ─────────────────────────────────────────────────────────────
 @app.get("/api/health", tags=["health"])
 async def health():
-    return {"status": "ok", "service": "360Tales API", "version": "1.0.0"}
-
+    return {"status": "ok", "service": "Horizon API", "version": "1.0.0"}

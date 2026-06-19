@@ -1,10 +1,8 @@
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
-from models.database import get_db
-from models.user import User
-from models.project import Project
+from bson import ObjectId
+from models.database import get_db, serialize_doc
+from models.project import make_project_doc
 from utils.auth_utils import make_current_user_dep
 from utils.file_utils import safe_delete
 
@@ -13,70 +11,69 @@ _get_current_user = make_current_user_dep(get_db)
 
 
 @router.get("/")
-async def list_projects(
-    current_user: User = Depends(_get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(
-        select(Project)
-        .where(Project.user_id == current_user.id)
-        .order_by(desc(Project.created_at))
-    )
-    projects = result.scalars().all()
-    return [p.to_dict() for p in projects]
+async def list_projects(current_user: dict = Depends(_get_current_user)):
+    db       = get_db()
+    cursor   = db.projects.find({"user_id": current_user["id"]}).sort("created_at", -1)
+    projects = await cursor.to_list(length=200)
+    return [serialize_doc(p) for p in projects]
 
 
 @router.get("/{project_id}")
-async def get_project(
-    project_id: int,
-    current_user: User = Depends(_get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    project: Project = await db.get(Project, project_id)
-    if not project or project.user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="Project not found")
-    return project.to_dict()
+async def get_project(project_id: str, current_user: dict = Depends(_get_current_user)):
+    db      = get_db()
+    try:
+        oid = ObjectId(project_id)
+    except Exception:
+        raise HTTPException(404, "Project not found")
+
+    project = await db.projects.find_one({"_id": oid})
+    if not project or project.get("user_id") != current_user["id"]:
+        raise HTTPException(404, "Project not found")
+    return serialize_doc(project)
 
 
 @router.patch("/{project_id}")
-async def update_project(
-    project_id: int,
-    body: dict,
-    current_user: User = Depends(_get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    project: Project = await db.get(Project, project_id)
-    if not project or project.user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="Project not found")
+async def update_project(project_id: str, body: dict,
+                         current_user: dict = Depends(_get_current_user)):
+    db = get_db()
+    try:
+        oid = ObjectId(project_id)
+    except Exception:
+        raise HTTPException(404, "Project not found")
 
-    if "title" in body and body["title"].strip():
-        project.title      = body["title"].strip()
-        project.updated_at = datetime.utcnow()
+    project = await db.projects.find_one({"_id": oid})
+    if not project or project.get("user_id") != current_user["id"]:
+        raise HTTPException(404, "Project not found")
 
-    await db.commit()
-    await db.refresh(project)
-    return project.to_dict()
+    updates = {"updated_at": datetime.utcnow()}
+    if "title" in body and str(body["title"]).strip():
+        updates["title"] = str(body["title"]).strip()
+
+    await db.projects.update_one({"_id": oid}, {"$set": updates})
+    updated = await db.projects.find_one({"_id": oid})
+    return serialize_doc(updated)
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_project(
-    project_id: int,
-    current_user: User = Depends(_get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    project: Project = await db.get(Project, project_id)
-    if not project or project.user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="Project not found")
+async def delete_project(project_id: str, current_user: dict = Depends(_get_current_user)):
+    db = get_db()
+    try:
+        oid = ObjectId(project_id)
+    except Exception:
+        raise HTTPException(404, "Project not found")
+
+    project = await db.projects.find_one({"_id": oid})
+    if not project or project.get("user_id") != current_user["id"]:
+        raise HTTPException(404, "Project not found")
 
     # Clean up files
-    safe_delete(project.upload_path)
-    safe_delete(project.output_video_path)
+    safe_delete(project.get("upload_path"))
+    safe_delete(project.get("output_video_path"))
 
-    await db.delete(project)
-    await db.commit()
+    await db.projects.delete_one({"_id": oid})
 
     # Decrement user story count
-    user: User = await db.get(User, current_user.id)
-    if user and user.total_stories > 0:
-        user.total_stories -= 1
-        await db.commit()
+    await db.users.update_one(
+        {"_id": ObjectId(current_user["id"]), "total_stories": {"$gt": 0}},
+        {"$inc": {"total_stories": -1}},
+    )

@@ -1,5 +1,5 @@
 /**
- * 360Tales API service layer
+ * Horizon API service layer
  * Wraps fetch with JWT auth, base URL, and error handling.
  */
 
@@ -7,9 +7,9 @@ const BASE_URL = import.meta.env.VITE_API_URL || ''
 
 // ─── Token helpers ────────────────────────────────────────────────────────────
 
-export const getToken  = ()          => localStorage.getItem('360tales_token')
-export const setToken  = (t)         => localStorage.setItem('360tales_token', t)
-export const clearToken = ()         => localStorage.removeItem('360tales_token')
+export const getToken   = ()  => localStorage.getItem('horizon_token')
+export const setToken   = (t) => localStorage.setItem('horizon_token', t)
+export const clearToken = ()  => localStorage.removeItem('horizon_token')
 
 function authHeaders(extra = {}) {
   const token = getToken()
@@ -23,7 +23,6 @@ function authHeaders(extra = {}) {
 
 async function handleResponse(res) {
   if (res.ok) {
-    // 204 No Content
     if (res.status === 204) return null
     return res.json()
   }
@@ -35,7 +34,6 @@ async function handleResponse(res) {
 // ─── Core methods ─────────────────────────────────────────────────────────────
 
 export const api = {
-  /** JSON POST */
   post: async (url, data) => {
     const res = await fetch(BASE_URL + url, {
       method:  'POST',
@@ -45,15 +43,11 @@ export const api = {
     return handleResponse(res)
   },
 
-  /** JSON GET */
   get: async (url) => {
-    const res = await fetch(BASE_URL + url, {
-      headers: authHeaders(),
-    })
+    const res = await fetch(BASE_URL + url, { headers: authHeaders() })
     return handleResponse(res)
   },
 
-  /** JSON PATCH */
   patch: async (url, data) => {
     const res = await fetch(BASE_URL + url, {
       method:  'PATCH',
@@ -63,7 +57,6 @@ export const api = {
     return handleResponse(res)
   },
 
-  /** DELETE */
   delete: async (url) => {
     const res = await fetch(BASE_URL + url, {
       method:  'DELETE',
@@ -72,11 +65,10 @@ export const api = {
     return handleResponse(res)
   },
 
-  /** Multipart file upload */
   upload: async (url, formData) => {
     const res = await fetch(BASE_URL + url, {
       method:  'POST',
-      headers: authHeaders(),   // NO Content-Type — browser sets multipart boundary
+      headers: authHeaders(),
       body:    formData,
     })
     return handleResponse(res)
@@ -85,22 +77,29 @@ export const api = {
 
 // ─── Auth convenience ─────────────────────────────────────────────────────────
 
+function _storeAuth(data) {
+  setToken(data.access_token)
+  localStorage.setItem('horizon_name',  data.user.name)
+  localStorage.setItem('horizon_email', data.user.email)
+  localStorage.setItem('horizon_auth',  '1')
+}
+
 export const authAPI = {
   signup: async (name, email, password) => {
     const data = await api.post('/api/auth/signup', { name, email, password })
-    setToken(data.access_token)
-    localStorage.setItem('360tales_name',  data.user.name)
-    localStorage.setItem('360tales_email', data.user.email)
-    localStorage.setItem('360tales_auth',  '1')
+    _storeAuth(data)
     return data.user
   },
 
   login: async (email, password) => {
     const data = await api.post('/api/auth/login', { email, password })
-    setToken(data.access_token)
-    localStorage.setItem('360tales_name',  data.user.name)
-    localStorage.setItem('360tales_email', data.user.email)
-    localStorage.setItem('360tales_auth',  '1')
+    _storeAuth(data)
+    return data.user
+  },
+
+  googleAuth: async (credential) => {
+    const data = await api.post('/api/auth/google', { credential })
+    _storeAuth(data)
     return data.user
   },
 
@@ -108,9 +107,9 @@ export const authAPI = {
 
   logout: () => {
     clearToken()
-    localStorage.removeItem('360tales_auth')
-    localStorage.removeItem('360tales_name')
-    localStorage.removeItem('360tales_email')
+    localStorage.removeItem('horizon_auth')
+    localStorage.removeItem('horizon_name')
+    localStorage.removeItem('horizon_email')
   },
 }
 
@@ -132,27 +131,18 @@ export const uploadAPI = {
 // ─── Generation convenience ───────────────────────────────────────────────────
 
 export const generateAPI = {
-  start: (params) => api.post('/api/generate/start', params),
-  status: (projectId) => api.get(`/api/generate/status/${projectId}`),
+  start:  (params)     => api.post('/api/generate/start', params),
+  status: (projectId)  => api.get(`/api/generate/status/${projectId}`),
 
-  /** Poll until status is 'ready' or 'failed'. Calls onProgress(percent) each poll. */
   poll: (projectId, onProgress, intervalMs = 3000) => {
     return new Promise((resolve, reject) => {
       const timer = setInterval(async () => {
         try {
           const data = await generateAPI.status(projectId)
           if (onProgress) onProgress(data.progress_percent ?? 0)
-          if (data.status === 'ready') {
-            clearInterval(timer)
-            resolve(data)
-          } else if (data.status === 'failed') {
-            clearInterval(timer)
-            reject(new Error(data.error || 'Generation failed'))
-          }
-        } catch (err) {
-          clearInterval(timer)
-          reject(err)
-        }
+          if (data.status === 'ready') { clearInterval(timer); resolve(data) }
+          else if (data.status === 'failed') { clearInterval(timer); reject(new Error(data.error || 'Generation failed')) }
+        } catch (err) { clearInterval(timer); reject(err) }
       }, intervalMs)
     })
   },
@@ -161,16 +151,15 @@ export const generateAPI = {
 // ─── Projects convenience ─────────────────────────────────────────────────────
 
 export const projectsAPI = {
-  list:    ()           => api.get('/api/projects'),
-  get:     (id)         => api.get(`/api/projects/${id}`),
-  rename:  (id, title)  => api.patch(`/api/projects/${id}`, { title }),
-  delete:  (id)         => api.delete(`/api/projects/${id}`),
+  list:   ()          => api.get('/api/projects/'),
+  get:    (id)        => api.get(`/api/projects/${id}`),
+  rename: (id, title) => api.patch(`/api/projects/${id}`, { title }),
+  delete: (id)        => api.delete(`/api/projects/${id}`),
 }
 
 // ─── TTS convenience ──────────────────────────────────────────────────────────
 
 export const ttsAPI = {
-  /** Returns a Blob URL for the audio preview. */
   preview: async (text, language, voiceStyle) => {
     const res = await fetch(BASE_URL + '/api/tts/preview', {
       method:  'POST',

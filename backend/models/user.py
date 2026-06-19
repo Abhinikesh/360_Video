@@ -1,26 +1,19 @@
+"""
+User document helpers for MongoDB.
+No SQLAlchemy models — just plain dicts stored in the 'users' collection.
+"""
 from datetime import datetime
-from sqlalchemy import Integer, String, DateTime
-from sqlalchemy.orm import Mapped, mapped_column
-from models.database import Base
 
 
-class User(Base):
-    __tablename__ = "users"
-
-    id:            Mapped[int]      = mapped_column(Integer,     primary_key=True, autoincrement=True)
-    name:          Mapped[str]      = mapped_column(String(100), nullable=False)
-    email:         Mapped[str]      = mapped_column(String(255), unique=True, nullable=False, index=True)
-    password_hash: Mapped[str]      = mapped_column(String(255), nullable=False)
-    plan:          Mapped[str]      = mapped_column(String(20),  nullable=False, default="free")
-    total_stories: Mapped[int]      = mapped_column(Integer,     nullable=False, default=0)
-    created_at:    Mapped[datetime] = mapped_column(DateTime,    nullable=False, default=datetime.utcnow)
-
-    def to_dict(self):
-        return {
-            "id":            self.id,
-            "name":          self.name,
-            "email":         self.email,
-            "plan":          self.plan,
-            "total_stories": self.total_stories,
-            "created_at":    self.created_at.isoformat(),
-        }
+def make_user_doc(name: str, email: str, password_hash: str | None = None,
+                  google_id: str | None = None, avatar_url: str = "") -> dict:
+    """Build a new user document for insertion."""
+    return {
+        "name":          name,
+        "email":         email.lower().strip(),
+        "password_hash": password_hash,
+        "google_id":     google_id,
+        "avatar_url":    avatar_url or "",
+        "created_at":    datetime.utcnow(),
+        "total_stories": 0,
+    }
