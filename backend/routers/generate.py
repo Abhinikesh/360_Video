@@ -91,6 +91,8 @@ async def _run_pipeline(project_id: str, params: dict) -> None:
             output_path=output_path,
             burn_subtitles=params["burn_subtitles"],
             export_format=params["export_format"],
+            add_background_music=params.get("add_background_music", False),
+            music_style=params.get("music_style", "Ambient"),
         )
         await _update("processing", 95)
 
@@ -147,14 +149,16 @@ async def start_generation(
     project_id = str(result.inserted_id)
 
     params = {
-        "upload_path":      upload_path,
-        "narration_text":   body.narration_text,
-        "language":         body.language,
-        "voice_style":      body.voice_style,
-        "export_format":    body.export_format,
-        "effect_type":      body.effect_type,
-        "burn_subtitles":   body.burn_subtitles,
-        "duration_seconds": body.duration_seconds,
+        "upload_path":           upload_path,
+        "narration_text":        body.narration_text,
+        "language":              body.language,
+        "voice_style":           body.voice_style,
+        "export_format":         body.export_format,
+        "effect_type":           body.effect_type,
+        "burn_subtitles":        body.burn_subtitles,
+        "add_background_music":  body.add_background_music,
+        "music_style":           body.music_style,
+        "duration_seconds":      body.duration_seconds,
     }
     background_tasks.add_task(_run_pipeline, project_id, params)
 

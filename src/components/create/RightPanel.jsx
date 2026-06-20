@@ -1,6 +1,7 @@
-import { useState } from 'react'
-import { Sparkles, Check, Volume2, ChevronDown } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { Sparkles, Check, Volume2, ChevronDown, Play, Loader } from 'lucide-react'
 import { useToast } from '../ToastProvider'
+import { musicAPI } from '../../services/api'
 
 /* ── All options ── */
 const LANGUAGES = [
@@ -17,7 +18,7 @@ const FORMATS = [
   { id: 'YouTube 360',     label: 'YouTube 360',     sub: '16:9 · 4K'         },
   { id: 'VR Ready',        label: 'VR Ready',        sub: 'Equirect · 4K'     },
 ]
-const MUSIC_STYLES = ['Ambient', 'Classical', 'Nature Sounds', 'Upbeat Travel', 'None']
+const MUSIC_STYLES = ['Ambient', 'Classical', 'Nature Sounds', 'Upbeat Travel', 'Cinematic']
 
 const LANG_CODES = {
   English: 'en-US', Hindi: 'hi-IN', Spanish: 'es-ES', French: 'fr-FR',
@@ -65,9 +66,36 @@ export default function RightPanel({
   watermarkText, onWatermarkTextChange,
   canGenerate, onGenerate,
 }) {
-  const addToast         = useToast()
-  const [voicePlaying, setVoicePlaying] = useState(false)
+  const addToast             = useToast()
+  const [voicePlaying,  setVoicePlaying]  = useState(false)
+  const [musicPreviewing, setMusicPreviewing] = useState(false)
+  const musicAudioRef = useRef(null)
   const MAX = 1000
+
+  /* ── Music style preview ── */
+  const handleMusicPreview = async () => {
+    if (musicPreviewing) {
+      // Stop current preview
+      if (musicAudioRef.current) {
+        musicAudioRef.current.pause()
+        musicAudioRef.current = null
+      }
+      setMusicPreviewing(false)
+      return
+    }
+    setMusicPreviewing(true)
+    try {
+      const url   = await musicAPI.preview(musicStyle)
+      const audio = new Audio(url)
+      musicAudioRef.current = audio
+      audio.onended = () => { setMusicPreviewing(false); musicAudioRef.current = null }
+      audio.onerror = () => { setMusicPreviewing(false); musicAudioRef.current = null }
+      audio.play()
+    } catch (err) {
+      addToast('Music preview failed — is the backend running?')
+      setMusicPreviewing(false)
+    }
+  }
 
   /* ── Voice preview ── */
   const previewVoice = () => {
@@ -208,8 +236,29 @@ export default function RightPanel({
                 <Toggle id="bgMusic" checked={bgMusic} onChange={onBgMusicChange} />
               </div>
               {bgMusic && (
-                <div className="mt-2">
-                  <StyledSelect id="musicStyle" value={musicStyle} onChange={onMusicStyleChange} options={MUSIC_STYLES} />
+                <div className="mt-2 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <StyledSelect id="musicStyle" value={musicStyle} onChange={onMusicStyleChange} options={MUSIC_STYLES} />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleMusicPreview}
+                      title={musicPreviewing ? 'Stop preview' : 'Preview 5 seconds'}
+                      className={`shrink-0 flex items-center gap-1 px-2.5 py-2 rounded-lg border text-xs font-semibold transition-colors ${
+                        musicPreviewing
+                          ? 'border-blue-300 bg-blue-50 text-blue-600'
+                          : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      {musicPreviewing
+                        ? <><Loader size={12} className="animate-spin" />Stop</>
+                        : <><Play size={12} />Play</>}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-gray-400 flex items-center gap-1">
+                    🎵 Music plays softly at 15% volume beneath narration
+                  </p>
                 </div>
               )}
             </div>

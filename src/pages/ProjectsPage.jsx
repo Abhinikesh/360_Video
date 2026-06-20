@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   PlusCircle, Search, Film, MoreVertical,
-  Download, Link2, Pencil, Trash2, Menu, Clock
+  Download, Link2, Pencil, Trash2, Menu, Clock, QrCode
 } from 'lucide-react'
 import Sidebar from '../components/dashboard/Sidebar'
 import { projectsAPI } from '../services/api'
+import { qrAPI } from '../services/api'
 
 const STATUS_COLOR = {
   ready:      'bg-green-100 text-green-700',
@@ -25,6 +26,7 @@ function ThreeDotMenu({ onAction }) {
   const items = [
     { icon: Download, label: 'Download MP4',    action: 'download' },
     { icon: Link2,    label: 'Copy Share Link', action: 'copy'     },
+    { icon: QrCode,   label: 'Download QR Code',action: 'qr'       },
     { icon: Pencil,   label: 'Rename',          action: 'rename'   },
     { icon: Trash2,   label: 'Delete',          action: 'delete', red: true },
   ]
@@ -172,6 +174,22 @@ export default function ProjectsPage() {
     if (action === 'copy') {
       navigator.clipboard.writeText(`${window.location.origin}/share/${project.id}`).catch(() => {})
       showToast('Link copied!')
+    }
+    if (action === 'qr') {
+      showToast('Generating QR code…')
+      try {
+        const url  = await qrAPI.download(project.id)
+        const link = document.createElement('a')
+        link.href     = url
+        link.download = `horizon-qr-${project.id.slice(0, 8)}.png`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+        showToast('QR code downloaded!')
+      } catch {
+        showToast('Failed to generate QR code.')
+      }
     }
     if (action === 'delete') {
       if (!window.confirm(`Delete "${project.title}"?`)) return

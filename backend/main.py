@@ -15,6 +15,11 @@ for _folder in ["uploads", "outputs", "outputs/videos", "outputs/audio", "output
 # ─── Lifespan ─────────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Generate music tracks on first boot (zero-cost, procedural)
+    from services.music_service import ensure_music_files
+    import asyncio
+    await asyncio.get_event_loop().run_in_executor(None, ensure_music_files)
+
     from models.database import connect_db, close_db
     await connect_db()
     yield
@@ -43,7 +48,7 @@ app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
 app.mount("/uploads", StaticFiles(directory="uploads"),  name="uploads")
 
 # ─── Routers ──────────────────────────────────────────────────────────────────
-from routers import auth, upload, generate, projects, tts, ai
+from routers import auth, upload, generate, projects, tts, ai, music, qr
 
 app.include_router(auth.router,     prefix="/api/auth",     tags=["auth"])
 app.include_router(upload.router,   prefix="/api/upload",   tags=["upload"])
@@ -51,6 +56,8 @@ app.include_router(generate.router, prefix="/api/generate", tags=["generate"])
 app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
 app.include_router(tts.router,      prefix="/api/tts",      tags=["tts"])
 app.include_router(ai.router,       prefix="/api/ai",       tags=["ai"])
+app.include_router(music.router,    prefix="/api/music",    tags=["music"])
+app.include_router(qr.router,       prefix="/api/qr",       tags=["qr"])
 
 # ─── Health check ─────────────────────────────────────────────────────────────
 @app.get("/api/health", tags=["health"])

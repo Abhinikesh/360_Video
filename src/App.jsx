@@ -9,6 +9,7 @@ import CreatePage           from './pages/CreatePage'
 import SettingsPage         from './pages/SettingsPage'
 import ProjectsPage         from './pages/ProjectsPage'
 import HelpPage             from './pages/HelpPage'
+import SharePage            from './pages/SharePage'
 
 export default function App() {
   return (
@@ -22,7 +23,9 @@ export default function App() {
           <Route path="/create" element={<ErrorBoundary><CreatePage /></ErrorBoundary>} />
           <Route path="/settings" element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
           <Route path="/projects" element={<ErrorBoundary><ProjectsPage /></ErrorBoundary>} />
-          <Route path="/help" element={<ErrorBoundary><HelpPage /></ErrorBoundary>} />
+          <Route path="/help"      element={<ErrorBoundary><HelpPage /></ErrorBoundary>} />
+          {/* Public — no auth required */}
+          <Route path="/share/:projectId" element={<ErrorBoundary><SharePage /></ErrorBoundary>} />
         </Routes>
       </BrowserRouter>
     </ToastProvider>

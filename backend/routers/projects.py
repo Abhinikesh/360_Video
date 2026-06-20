@@ -18,7 +18,46 @@ async def list_projects(current_user: dict = Depends(_get_current_user)):
     return [serialize_doc(p) for p in projects]
 
 
+@router.get("/share/{project_id}")
+async def get_shared_project(project_id: str):
+    """
+    Public endpoint — no auth required.
+    Returns limited project info for the share / QR-scan landing page.
+    Only exposes projects with status 'ready'.
+    """
+    db = get_db()
+    try:
+        oid = ObjectId(project_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Story not found")
+
+    project = await db.projects.find_one({"_id": oid, "status": "ready"})
+    if not project:
+        raise HTTPException(status_code=404, detail="Story not found or not ready")
+
+    # Fetch creator's first name only
+    creator_name = "A Horizon creator"
+    try:
+        creator = await db.users.find_one({"_id": ObjectId(project["user_id"])})
+        if creator:
+            name = creator.get("name", "").strip()
+            creator_name = name.split()[0] if name else creator_name
+    except Exception:
+        pass
+
+    return {
+        "id":               project_id,
+        "title":            project.get("title", "Untitled Story"),
+        "narration_text":   project.get("narration_text", ""),
+        "language":         project.get("language", "English"),
+        "output_video_url": project.get("output_video_path", ""),
+        "created_at":       str(project.get("created_at", "")),
+        "creator_name":     creator_name,
+    }
+
+
 @router.get("/{project_id}")
+
 async def get_project(project_id: str, current_user: dict = Depends(_get_current_user)):
     db      = get_db()
     try:

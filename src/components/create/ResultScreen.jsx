@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { CheckCircle, Download, Link2, Share2, Globe, Plus, Clock, Film, Mic, HardDrive, X } from 'lucide-react'
+import { CheckCircle, Download, Link2, Share2, Globe, Plus, Clock, Film, Mic, HardDrive, X, QrCode, Loader } from 'lucide-react'
 import { useToast } from '../ToastProvider'
+import { qrAPI } from '../../services/api'
 
 const SAMPLE_VIDEO  = 'https://www.w3schools.com/html/mov_bbb.mp4'
 const SAMPLE_SHARE  = 'https://horizon.app/share/demo-story-001'
@@ -11,9 +12,14 @@ export default function ResultScreen({ fileUrl, format, language, voiceStyle, re
   const [videoErr, setVideoErr]     = useState(false)
   const [reelsModal, setReelsModal] = useState(false)
 
+  // QR code state
+  const [qrUrl,     setQrUrl]     = useState(null)
+  const [qrLoading, setQrLoading] = useState(false)
+
   // Prefer real backend output URL; fall back to sample for demo
   const videoSrc   = resultData?.output_url || SAMPLE_VIDEO
-  const shareLink  = resultData?.share_url  || SAMPLE_SHARE
+  const shareLink  = resultData?.share_url  || `${window.location.origin}/share/${resultData?.id || 'demo'}`
+  const projectId  = resultData?.id || null
   const duration   = resultData?.duration_seconds
     ? `${Math.floor(resultData.duration_seconds / 60)}:${String(resultData.duration_seconds % 60).padStart(2, '0')}`
     : '—'
@@ -21,7 +27,17 @@ export default function ResultScreen({ fileUrl, format, language, voiceStyle, re
     ? `${resultData.file_size_mb.toFixed(1)} MB`
     : '—'
 
-  /* ── Download ── */
+  /* ── Fetch QR code when project id is available ── */
+  useEffect(() => {
+    if (!projectId) return
+    setQrLoading(true)
+    qrAPI.download(projectId)
+      .then(url => setQrUrl(url))
+      .catch(() => {/* QR unavailable — backend might not be running */})
+      .finally(() => setQrLoading(false))
+  }, [projectId])
+
+  /* ── Download video ── */
   const handleDownload = () => {
     const a = document.createElement('a')
     a.href     = videoSrc
@@ -36,6 +52,18 @@ export default function ResultScreen({ fileUrl, format, language, voiceStyle, re
   const handleCopy = () => {
     navigator.clipboard.writeText(shareLink).catch(() => {})
     addToast('Link copied to clipboard!')
+  }
+
+  /* ── Download QR code ── */
+  const handleDownloadQR = () => {
+    if (!qrUrl) return
+    const a = document.createElement('a')
+    a.href     = qrUrl
+    a.download = `horizon-qr-${projectId?.slice(0, 8) || 'code'}.png`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    addToast('QR code downloaded!')
   }
 
   return (
@@ -110,6 +138,70 @@ export default function ResultScreen({ fileUrl, format, language, voiceStyle, re
                 <Share2 size={16} />
                 Export to Reels
               </button>
+            </div>
+
+            {/* ── QR Code section ── */}
+            <div className="pt-2">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="h-px flex-1 bg-gray-200" />
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  <QrCode size={13} />
+                  Share via QR Code
+                </span>
+                <div className="h-px flex-1 bg-gray-200" />
+              </div>
+
+              <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-5">
+                {/* QR image */}
+                <div className="shrink-0 w-[180px] h-[180px] rounded-xl border border-gray-100 bg-gray-50 flex items-center justify-center overflow-hidden">
+                  {qrLoading ? (
+                    <div className="flex flex-col items-center gap-2 text-gray-400">
+                      <Loader size={22} className="animate-spin" />
+                      <span className="text-[11px]">Generating…</span>
+                    </div>
+                  ) : qrUrl ? (
+                    <img
+                      src={qrUrl}
+                      alt="QR code for sharing"
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 text-gray-300">
+                      <QrCode size={36} />
+                      <span className="text-[11px] text-center px-2">
+                        Start backend to generate QR
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Info + buttons */}
+                <div className="flex-1 space-y-3">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">Share this story</p>
+                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                      Anyone who scans this QR code can watch your 360° story — no app needed.
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={handleDownloadQR}
+                      disabled={!qrUrl}
+                      className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gray-900 text-white text-xs font-semibold hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Download size={13} />
+                      Download QR Code
+                    </button>
+                    <button
+                      onClick={handleCopy}
+                      className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 text-gray-700 text-xs font-semibold hover:bg-gray-50 transition-colors"
+                    >
+                      <Link2 size={13} />
+                      Copy Share Link
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="pt-1">

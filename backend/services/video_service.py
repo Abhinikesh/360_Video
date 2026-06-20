@@ -2,7 +2,8 @@
 Video assembly service using FFmpeg.
 
 Steps:
-  1. Combine animation video + TTS audio → combined.mp4
+  0. (Optional) Mix TTS narration with background music
+  1. Combine animation video + (mixed) audio → combined.mp4
   2. Optionally burn subtitles (SRT generated from narration text)
   3. Optionally resize for target export format
 """
@@ -23,6 +24,8 @@ FORMAT_SCALE = {
 }
 
 
+# ─── Public async entry point ─────────────────────────────────────────────────
+
 async def assemble_final_video(
     video_path: str,
     audio_path: str,
@@ -30,9 +33,11 @@ async def assemble_final_video(
     output_path: str,
     burn_subtitles: bool = True,
     export_format: str = "Standard MP4",
+    add_background_music: bool = False,
+    music_style: str = "Ambient",
 ) -> str:
     """
-    Full FFmpeg pipeline. Returns path to the final output video.
+    Full FFmpeg pipeline.  Returns path to the final output video.
     Raises RuntimeError if FFmpeg is not installed or fails.
     """
     _check_ffmpeg()
@@ -42,8 +47,11 @@ async def assemble_final_video(
         _assemble,
         video_path, audio_path, narration_text,
         output_path, burn_subtitles, export_format,
+        add_background_music, music_style,
     )
 
+
+# ─── FFmpeg helpers ───────────────────────────────────────────────────────────
 
 def _check_ffmpeg() -> None:
     if not shutil.which("ffmpeg"):
@@ -71,12 +79,13 @@ def _escape_srt_path(path: str) -> str:
     - Backslashes must be escaped as \\\\
     """
     path = os.path.abspath(path)
-    # On macOS/Linux paths won't have backslashes, but be safe
     path = path.replace("\\", "\\\\")
     path = path.replace("'",  "\\'")
     path = path.replace(":",  "\\:")
     return path
 
+
+# ─── Sync assembly (runs in thread executor) ──────────────────────────────────
 
 def _assemble(
     video_path: str,
@@ -85,10 +94,16 @@ def _assemble(
     output_path: str,
     burn_subtitles: bool,
     export_format: str,
+    add_background_music: bool,
+    music_style: str,
 ) -> str:
     run_id  = str(uuid.uuid4())[:8]
     tmp_dir = os.path.abspath(f"outputs/videos/tmp_{run_id}")
     os.makedirs(tmp_dir, exist_ok=True)
+
+    # ── Step 0: Mix background music into narration audio ────────────────────
+    if add_background_music and music_style and music_style != "None":
+        audio_path = _mix_music(audio_path, music_style, tmp_dir)
 
     # ── Step 1: Merge video + audio ──────────────────────────────────────────
     merged = os.path.join(tmp_dir, "merged.mp4")
@@ -113,7 +128,6 @@ def _assemble(
         subtitled = os.path.join(tmp_dir, "subtitled.mp4")
         safe_srt  = _escape_srt_path(srt_path)
 
-        # force_style values: no single-quotes inside the value (use ASS hex)
         style = (
             "FontSize=18,"
             "PrimaryColour=&H00FFFFFF,"
@@ -122,7 +136,6 @@ def _assemble(
             "Outline=1,"
             "Shadow=0"
         )
-        # Full filter string: subtitles='<escaped_path>':force_style='<style>'
         vf_filter = f"subtitles='{safe_srt}':force_style='{style}'"
 
         try:
@@ -135,7 +148,7 @@ def _assemble(
             ])
             current = subtitled
         except RuntimeError:
-            # If subtitle burning fails (e.g. font not found), skip it gracefully
+            # If subtitle burning fails (e.g. font not found), skip gracefully
             current = merged
 
     # ── Step 3: Resize for export format ────────────────────────────────────
@@ -163,6 +176,65 @@ def _assemble(
 
     return output_path
 
+
+# ─── Background music mixing ─────────────────────────────────────────────────
+
+def _mix_music(
+    narration_path: str,
+    music_style: str,
+    tmp_dir: str,
+    music_volume: float = 0.15,
+) -> str:
+    """
+    Mix background music underneath the narration using FFmpeg amix filter.
+    Music is looped to match narration length and kept at music_volume (0.15).
+    Falls back to original narration audio if anything goes wrong.
+    """
+    try:
+        from services.music_service import get_music_path
+        music_path = get_music_path(music_style)
+        if not music_path or not os.path.exists(music_path):
+            return narration_path
+
+        mixed_path = os.path.join(tmp_dir, "narration_mixed.aac")
+
+        result = subprocess.run(
+            [
+                "ffmpeg", "-y",
+                # Input 0: narration (sets the duration)
+                "-i", narration_path,
+                # Input 1: music track looped indefinitely
+                "-stream_loop", "-1",
+                "-i", music_path,
+                "-filter_complex",
+                (
+                    f"[0:a]volume=1.0[narration];"
+                    f"[1:a]volume={music_volume}[music];"
+                    f"[narration][music]amix=inputs=2:duration=first:dropout_transition=2[out]"
+                ),
+                "-map", "[out]",
+                "-c:a", "aac",
+                "-b:a", "128k",
+                "-shortest",
+                mixed_path,
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+        if result.returncode == 0 and os.path.exists(mixed_path):
+            print(f"[video_service] Music mixed: {music_style} at {int(music_volume * 100)}% volume")
+            return mixed_path
+        else:
+            print(f"[video_service] Music mix warning (using narration only): {result.stderr[-500:]}")
+            return narration_path
+
+    except Exception as exc:
+        print(f"[video_service] Music mix skipped: {exc}")
+        return narration_path
+
+
+# ─── SRT subtitle generation ─────────────────────────────────────────────────
 
 def _generate_srt(text: str, tmp_dir: str) -> str:
     """

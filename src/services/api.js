@@ -186,3 +186,43 @@ export const aiAPI = {
   describe: (fileId, language = 'English') =>
     api.post('/api/ai/describe', { file_id: fileId, language }),
 }
+
+// ─── Music convenience ────────────────────────────────────────────────────────
+
+export const musicAPI = {
+  /** List available music styles (no auth required). */
+  styles: () => api.get('/api/music/styles'),
+
+  /**
+   * Fetch a 5-second WAV preview for a music style.
+   * Returns a blob URL safe to pass to `new Audio(url).play()`.
+   * @param {string} style - e.g. "Ambient", "Classical"
+   */
+  preview: async (style) => {
+    const encoded = encodeURIComponent(style)
+    const res = await fetch(BASE_URL + `/api/music/preview/${encoded}`, {
+      headers: authHeaders(),
+    })
+    if (!res.ok) throw new Error('Music preview failed')
+    const blob = await res.blob()
+    return URL.createObjectURL(blob)
+  },
+}
+
+// ─── QR Code convenience ──────────────────────────────────────────────────────
+
+export const qrAPI = {
+  /**
+   * Fetch the branded QR code PNG for a project.
+   * Returns a blob URL safe for <img src=...> or anchor download.
+   * @param {string} projectId
+   */
+  download: async (projectId) => {
+    const res = await fetch(BASE_URL + `/api/qr/${projectId}`, {
+      headers: authHeaders(),
+    })
+    if (!res.ok) throw new Error('QR generation failed')
+    const blob = await res.blob()
+    return URL.createObjectURL(blob)
+  },
+}
