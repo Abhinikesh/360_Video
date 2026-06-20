@@ -39,7 +39,9 @@ backend/*.sqlite3
 backend/uploads/
 backend/outputs/
 
-# Environment secrets
-backend/.env
+# Environment secrets — never commit these
+.env
 .env.local
 .env.production
+.env.development
+backend/.env

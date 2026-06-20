@@ -6,7 +6,7 @@ import MiddlePanel from '../components/create/MiddlePanel'
 import RightPanel from '../components/create/RightPanel'
 import ProcessingScreen from '../components/create/ProcessingScreen'
 import ResultScreen from '../components/create/ResultScreen'
-import { uploadAPI, generateAPI } from '../services/api'
+import { uploadAPI, generateAPI, aiAPI } from '../services/api'
 import { useToast } from '../components/ToastProvider'
 
 // Map CSS effect IDs → backend display names
@@ -97,18 +97,25 @@ export default function CreatePage() {
     }
   }, [])
 
-  /* ── AI narration (demo — real would call an LLM endpoint) ── */
-  const handleAiGenerate = () => {
+  /* ── AI narration — calls real /api/ai/describe backend endpoint ── */
+  const handleAiGenerate = async () => {
+    if (!fileId || fileId === 'local-preview') {
+      addToast('Please upload an image first so AI can analyse it.')
+      return
+    }
     setAiLoading(true)
-    setTimeout(() => {
-      setNarration(
-        'Welcome to this magnificent destination. This remarkable place has captivated visitors for centuries ' +
-        'with its stunning architecture and rich cultural heritage. The site dates back over 400 years and ' +
-        'remains one of the most visited landmarks in the region, drawing millions of tourists each year who ' +
-        'come to witness its timeless beauty and profound historical significance.'
-      )
-      setAiLoading(false); setAiGenerated(true)
-    }, 2000)
+    try {
+      const result = await aiAPI.describe(fileId, language)
+      setNarration(result.description)
+      setAiGenerated(true)
+      if (!result.ai_powered) {
+        addToast('Used template narration — add GEMINI_API_KEY to .env for AI-powered descriptions.')
+      }
+    } catch (err) {
+      addToast('AI generation failed: ' + err.message)
+    } finally {
+      setAiLoading(false)
+    }
   }
 
   /* ── Generate ── */

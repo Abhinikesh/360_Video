@@ -171,3 +171,18 @@ export const ttsAPI = {
     return URL.createObjectURL(blob)
   },
 }
+
+// ─── AI convenience ───────────────────────────────────────────────────────────
+
+export const aiAPI = {
+  /** Check whether Gemini / ElevenLabs are configured on the server */
+  status: () => api.get('/api/ai/status'),
+
+  /**
+   * Ask the backend to analyse an uploaded image and return a narration script.
+   * @param {string} fileId  - The file_id returned by the upload endpoint
+   * @param {string} language - e.g. "English", "Hindi"
+   */
+  describe: (fileId, language = 'English') =>
+    api.post('/api/ai/describe', { file_id: fileId, language }),
+}

@@ -43,13 +43,14 @@ app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
 app.mount("/uploads", StaticFiles(directory="uploads"),  name="uploads")
 
 # ─── Routers ──────────────────────────────────────────────────────────────────
-from routers import auth, upload, generate, projects, tts
+from routers import auth, upload, generate, projects, tts, ai
 
 app.include_router(auth.router,     prefix="/api/auth",     tags=["auth"])
 app.include_router(upload.router,   prefix="/api/upload",   tags=["upload"])
 app.include_router(generate.router, prefix="/api/generate", tags=["generate"])
 app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
 app.include_router(tts.router,      prefix="/api/tts",      tags=["tts"])
+app.include_router(ai.router,       prefix="/api/ai",       tags=["ai"])
 
 # ─── Health check ─────────────────────────────────────────────────────────────
 @app.get("/api/health", tags=["health"])
