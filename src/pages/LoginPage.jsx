@@ -35,13 +35,19 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await authAPI.googleAuth(credentialResponse.credential)
-      // Must compute redirectTo AFTER auth so token is already stored
+      // Resolve destination — handles both string and location-object state.from
       const from = location.state?.from?.pathname || location.state?.from || '/dashboard'
       console.log('[Login] Google success → navigating to:', from)
       navigate(from, { replace: true })
     } catch (err) {
       console.error('[Login] Google auth error:', err)
-      setError(err.message || 'Google sign in failed. Please try again.')
+      // Safari reports network errors as "Load failed"; Chrome says "Failed to fetch"
+      const isNetworkErr = /load failed|failed to fetch/i.test(err.message)
+      setError(
+        isNetworkErr
+          ? 'Cannot reach the server. Make sure the backend is running on port 8000.'
+          : err.message || 'Google sign in failed. Please try again.'
+      )
     } finally {
       setLoading(false)
     }

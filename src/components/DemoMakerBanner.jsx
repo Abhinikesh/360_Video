@@ -4,13 +4,13 @@
  * with a dashed top border to feel visually separate from core product.
  */
 import { useNavigate } from 'react-router-dom'
+import { getToken } from '../services/api'
 
 export default function DemoMakerBanner() {
   const navigate = useNavigate()
 
   const handleClick = () => {
-    const token = localStorage.getItem('token')
-    if (token) {
+    if (getToken()) {
       navigate('/demo-maker')
     } else {
       navigate('/login', { state: { from: '/demo-maker' } })

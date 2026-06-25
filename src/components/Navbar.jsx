@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Globe, Menu, X } from 'lucide-react'
+import { getToken } from '../services/api'
 
 const navLinks = [
   { label: 'Home',         href: '/#home' },
@@ -12,8 +13,7 @@ const navLinks = [
 function useDemoMakerNav() {
   const navigate = useNavigate()
   return () => {
-    const token = localStorage.getItem('token')
-    if (token) {
+    if (getToken()) {
       navigate('/demo-maker')
     } else {
       navigate('/login', { state: { from: '/demo-maker' } })

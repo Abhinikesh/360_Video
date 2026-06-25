@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { Globe, Eye, EyeOff, Check, AlertCircle } from 'lucide-react'
 import { GoogleLogin } from '@react-oauth/google'
 import { authAPI } from '../services/api'
@@ -29,6 +29,7 @@ export default function SignupPage() {
   const strength = getStrength(password)
   const pwMatch  = confirm.length > 0 && password === confirm
   const navigate = useNavigate()
+  const location  = useLocation()
 
   const handleSubmit = async e => {
     e.preventDefault()
@@ -50,9 +51,16 @@ export default function SignupPage() {
     setLoading(true)
     try {
       await authAPI.googleAuth(credentialResponse.credential)
-      navigate('/dashboard')
+      const from = location.state?.from?.pathname || location.state?.from || '/dashboard'
+      navigate(from, { replace: true })
     } catch (err) {
-      setError(err.message || 'Google sign in failed. Please try again.')
+      console.error('[Signup] Google auth error:', err)
+      const isNetworkErr = /load failed|failed to fetch/i.test(err.message)
+      setError(
+        isNetworkErr
+          ? 'Cannot reach the server. Make sure the backend is running on port 8000.'
+          : err.message || 'Google sign in failed. Please try again.'
+      )
     } finally {
       setLoading(false)
     }
